@@ -1,4 +1,5 @@
 version: "3.9"
+
 services:
   web:
     build: .
@@ -9,6 +10,11 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     depends_on:
       - db
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0  # Add this line
+
   db:
     image: postgres:13
     environment:
@@ -18,5 +24,36 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  celery:
+    build: .
+    command: celery -A fuel_route worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0  # Add this line
+
+  celery-beat:
+    build: .
+    command: celery -A fuel_route beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0  # Add this line
+
 volumes:
   postgres_data:
+  redis_data:
